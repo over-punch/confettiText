@@ -31,7 +31,7 @@ export default function Home() {
 				eyebrow="letter confetti burst"
 				title={[{ text: "Your text," }, { text: "as confetti.", italic: true, subtle: true }]}
 				install="@overpunch/confettitext"
-				github="https://github.com/Liiift-Studio/confettiText"
+				github="https://github.com/over-punch/confettiText"
 				tech={["TypeScript", "Zero dependencies", "React + Vanilla JS"]}
 			>
 				<p className="text-base leading-relaxed max-w-lg">
@@ -140,7 +140,7 @@ clearConfettiText()`} />
 			<PortsSection
 				npm="@overpunch/confettitext"
 				bundle="confettitext"
-				repo="Liiift-Studio/confettiText"
+				repo="over-punch/confettiText"
 			/>
 
 			<SiteFooter current="confettiText" npmVersion={version} siteVersion={siteVersion} />

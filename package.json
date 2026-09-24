@@ -95,10 +95,10 @@
 	"homepage": "https://confettitext.com",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/Liiift-Studio/confettiText.git"
+		"url": "git+https://github.com/over-punch/confettiText.git"
 	},
 	"bugs": {
-		"url": "https://github.com/Liiift-Studio/confettiText/issues"
+		"url": "https://github.com/over-punch/confettiText/issues"
 	},
 	"sideEffects": false,
 	"publishConfig": {

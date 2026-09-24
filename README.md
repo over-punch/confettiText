@@ -2,9 +2,9 @@
 
 A confetti cannon where every particle is a **real letter of your text** — not a paper rectangle on a canvas, but a DOM letter-span that arcs out, tumbles through 3D, and falls. The physics are ported from [`canvas-confetti`](https://github.com/catdad/canvas-confetti) so the burst feels familiar; the letters carry variable-font weight jitter, so it reads as type.
 
-[![npm](https://img.shields.io/npm/v/%40liiift-studio%2Fconfettitext.svg)](https://www.npmjs.com/package/@overpunch/confettitext)
-[![bundle size](https://img.shields.io/bundlephobia/minzip/%40liiift-studio%2Fconfettitext)](https://bundlephobia.com/package/@overpunch/confettitext)
-[![license](https://img.shields.io/npm/l/%40liiift-studio%2Fconfettitext.svg)](./LICENSE)
+[![npm](https://img.shields.io/npm/v/%40overpunch%2Fconfettitext.svg)](https://www.npmjs.com/package/@overpunch/confettitext)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/%40overpunch%2Fconfettitext)](https://bundlephobia.com/package/@overpunch/confettitext)
+[![license](https://img.shields.io/npm/l/%40overpunch%2Fconfettitext.svg)](./LICENSE)
 
 **[▶ Try the live demo — confettitext.com](https://confettitext.com)**
 
@@ -167,4 +167,4 @@ MIT © [Liiift Studio](https://liiift.studio)
 
 ---
 
-Part of the [Liiift type-tools](https://github.com/Liiift-Studio/type-tools) suite.
+Part of the [Liiift type-tools](https://github.com/over-punch/type-tools) suite.

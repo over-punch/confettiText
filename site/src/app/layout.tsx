@@ -32,7 +32,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
 	return (
 		<html lang="en" className="h-full antialiased">
 			<body className="min-h-full flex flex-col">
-				<SiteHeader current="confettiText" githubUrl="https://github.com/Liiift-Studio/confettiText" />{children}</body>
+				<SiteHeader current="confettiText" githubUrl="https://github.com/over-punch/confettiText" />{children}</body>
 		</html>
 	)
 }
