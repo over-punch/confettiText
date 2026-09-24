@@ -1,8 +1,8 @@
-// Demo.tsx — interactive confettiText burst, driven by the real @liiift-studio/confettitext library.
+// Demo.tsx — interactive confettiText burst, driven by the real @overpunch/confettitext library.
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { confettiText } from '@liiift-studio/confettitext'
+import { confettiText } from '@overpunch/confettitext'
 
 /** Festive palette matching the tool's brand — passed as `colors` when the toggle is on. */
 const FESTIVE = ['#ff5d8f', '#ffd166', '#06d6a0', '#8a7cff', '#f2a25c', '#e9e2d8']

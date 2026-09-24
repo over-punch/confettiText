@@ -1,5 +1,5 @@
 // confettiText/src/index.ts — main entry: the framework-agnostic core (no React).
-// React bindings live at the '@liiift-studio/confettitext/react' subpath so a vanilla consumer never
+// React bindings live at the '@overpunch/confettitext/react' subpath so a vanilla consumer never
 // pulls React into their bundle graph.
 export { confettiText, attachConfettiText, clearConfettiText } from './core/adjust'
 export type { ConfettiBurst, ConfettiResult } from './core/adjust'

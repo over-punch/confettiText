@@ -30,7 +30,7 @@ export default function Home() {
 			<Hero
 				eyebrow="letter confetti burst"
 				title={[{ text: "Your text," }, { text: "as confetti.", italic: true, subtle: true }]}
-				install="@liiift-studio/confettitext"
+				install="@overpunch/confettitext"
 				github="https://github.com/Liiift-Studio/confettiText"
 				tech={["TypeScript", "Zero dependencies", "React + Vanilla JS"]}
 			>
@@ -74,7 +74,7 @@ export default function Home() {
 				<div className="flex flex-col gap-8 text-sm">
 					<div className="flex flex-col gap-3">
 						<p className="text-muted">Drop-in component — click to burst its own text</p>
-						<CodeBlock code={`import { ConfettiText } from '@liiift-studio/confettitext/react'
+						<CodeBlock code={`import { ConfettiText } from '@overpunch/confettitext/react'
 
 <ConfettiText as="h1" particleCount={120} spread={80}>
   Congrats!
@@ -82,7 +82,7 @@ export default function Home() {
 					</div>
 					<div className="flex flex-col gap-3">
 						<p className="text-muted">Hook — imperative fire()</p>
-						<CodeBlock code={`import { useConfettiText } from '@liiift-studio/confettitext/react'
+						<CodeBlock code={`import { useConfettiText } from '@overpunch/confettitext/react'
 
 const { ref, fire } = useConfettiText({ particleCount: 90 })
 <h1 ref={ref}>You did it</h1>
@@ -90,7 +90,7 @@ const { ref, fire } = useConfettiText({ particleCount: 90 })
 					</div>
 					<div className="flex flex-col gap-3">
 						<p className="text-muted">Vanilla JS</p>
-						<CodeBlock code={`import { confettiText, attachConfettiText, clearConfettiText } from '@liiift-studio/confettitext'
+						<CodeBlock code={`import { confettiText, attachConfettiText, clearConfettiText } from '@overpunch/confettitext'
 
 // One-off burst from the viewport centre:
 confettiText({ text: 'Hooray', particleCount: 120, spread: 90 })
@@ -138,7 +138,7 @@ clearConfettiText()`} />
 			</section>
 
 			<PortsSection
-				npm="@liiift-studio/confettitext"
+				npm="@overpunch/confettitext"
 				bundle="confettitext"
 				repo="Liiift-Studio/confettiText"
 			/>

@@ -1,9 +1,9 @@
-# @liiift-studio/confettitext
+# @overpunch/confettitext
 
 A confetti cannon where every particle is a **real letter of your text** — not a paper rectangle on a canvas, but a DOM letter-span that arcs out, tumbles through 3D, and falls. The physics are ported from [`canvas-confetti`](https://github.com/catdad/canvas-confetti) so the burst feels familiar; the letters carry variable-font weight jitter, so it reads as type.
 
-[![npm](https://img.shields.io/npm/v/%40liiift-studio%2Fconfettitext.svg)](https://www.npmjs.com/package/@liiift-studio/confettitext)
-[![bundle size](https://img.shields.io/bundlephobia/minzip/%40liiift-studio%2Fconfettitext)](https://bundlephobia.com/package/@liiift-studio/confettitext)
+[![npm](https://img.shields.io/npm/v/%40liiift-studio%2Fconfettitext.svg)](https://www.npmjs.com/package/@overpunch/confettitext)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/%40liiift-studio%2Fconfettitext)](https://bundlephobia.com/package/@overpunch/confettitext)
 [![license](https://img.shields.io/npm/l/%40liiift-studio%2Fconfettitext.svg)](./LICENSE)
 
 **[▶ Try the live demo — confettitext.com](https://confettitext.com)**
@@ -18,17 +18,17 @@ A confetti cannon where every particle is a **real letter of your text** — not
 ## Install
 
 ```bash
-npm install @liiift-studio/confettitext
+npm install @overpunch/confettitext
 ```
 
 ## Quickstart
 
-> **React bindings live at the `/react` subpath** so a vanilla import never pulls React into your bundle. Import them from `@liiift-studio/confettitext/react`.
+> **React bindings live at the `/react` subpath** so a vanilla import never pulls React into your bundle. Import them from `@overpunch/confettitext/react`.
 
 ### React — drop-in component (click to burst its own text)
 
 ```tsx
-import { ConfettiText } from '@liiift-studio/confettitext/react'
+import { ConfettiText } from '@overpunch/confettitext/react'
 
 <ConfettiText as="h1" particleCount={120} spread={80}>
   Congrats!
@@ -38,7 +38,7 @@ import { ConfettiText } from '@liiift-studio/confettitext/react'
 ### React — hook with imperative `fire()`
 
 ```tsx
-import { useConfettiText } from '@liiift-studio/confettitext/react'
+import { useConfettiText } from '@overpunch/confettitext/react'
 
 const { ref, fire } = useConfettiText({ particleCount: 90 })
 
@@ -51,7 +51,7 @@ The component/hook set `origin` from the element's on-screen position automatica
 ### Vanilla JS
 
 ```ts
-import { confettiText, attachConfettiText, clearConfettiText } from '@liiift-studio/confettitext'
+import { confettiText, attachConfettiText, clearConfettiText } from '@overpunch/confettitext'
 
 // One-off burst from the viewport centre. Returns a ConfettiBurst — a Promise resolving to
 // 'completed' | 'cleared', with a .clear() to cancel just this burst:
@@ -69,7 +69,7 @@ clearConfettiText()
 ### Webflow / no-code (one script tag)
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@liiift-studio/confettitext/dist/confettitext.webflow.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@overpunch/confettitext/dist/confettitext.webflow.min.js"></script>
 <script>
   ConfettiText.attach(document.querySelector('h1'))          // click-to-burst
   // ConfettiText.fire({ text: 'Yay', particleCount: 120 })  // or fire directly
@@ -105,7 +105,7 @@ Every option is optional. Physics defaults mirror canvas-confetti.
 
 ## API
 
-**Core** — `@liiift-studio/confettitext`:
+**Core** — `@overpunch/confettitext`:
 
 - `confettiText(options?)` → `ConfettiBurst` — fire a one-shot burst (viewport-fraction `origin`). The returned burst is a `Promise<'completed' | 'cleared'>` (resolves `'completed'` when it runs its course, `'cleared'` if cancelled) with a `.clear()` to cancel just this burst. Hold the returned value to use `.clear()` — it's only on the burst object, not on a `.then()`-chained promise — and a resolved burst's `.clear()` is a no-op. Each burst gets its own fixed layer, so `zIndex` is independent per burst.
 - `attachConfettiText(element, options?)` → `() => void` — click-to-burst (and Enter/Space) from an element's text/position; returns a detach fn.
@@ -113,7 +113,7 @@ Every option is optional. Physics defaults mirror canvas-confetti.
 - `CONFETTI_TEXT_CLASSES` — `{ layer: 'ct-layer', piece: 'ct-piece' }` for targeting the generated markup.
 - `DEFAULT_COLORS` — the festive palette used when `colors` is unspecified.
 
-**React** — `@liiift-studio/confettitext/react`:
+**React** — `@overpunch/confettitext/react`:
 
 - `useConfettiText(options?)` → `{ ref, fire }` — `ref` attaches to the source element; `fire(overrides?)` returns the `ConfettiBurst`.
 - `<ConfettiText as="span" …>children</ConfettiText>` — renders `children` as the source text and, beyond the burst options, accepts `as` (default `'span'`), `className`, `style`, `aria-label`, and `role`.
@@ -159,7 +159,7 @@ flowchart LR
 
 **v2.1.0** — added the `symbols` option (mix emoji/symbols into the burst) and grapheme-aware text splitting, so emoji and combining sequences stay whole.
 
-**v2.0.0** — React bindings moved to the `@liiift-studio/confettitext/react` subpath (the main entry is now React-free, so a vanilla import never pulls React into your graph). `confettiText()` now returns a `ConfettiBurst` — a `Promise<void>` (await it) with a `.clear()` to cancel just that burst. Migrating from v1: change React imports to `…/react`; no code changes for vanilla users.
+**v2.0.0** — React bindings moved to the `@overpunch/confettitext/react` subpath (the main entry is now React-free, so a vanilla import never pulls React into your graph). `confettiText()` now returns a `ConfettiBurst` — a `Promise<void>` (await it) with a `.clear()` to cancel just that burst. Migrating from v1: change React imports to `…/react`; no code changes for vanilla users.
 
 ## License
 

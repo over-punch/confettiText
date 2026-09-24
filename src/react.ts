@@ -1,5 +1,5 @@
-// confettiText/src/react.ts — React bindings entry ('@liiift-studio/confettitext/react').
-// Kept separate from the main entry so vanilla consumers importing from '@liiift-studio/confettitext'
+// confettiText/src/react.ts — React bindings entry ('@overpunch/confettitext/react').
+// Kept separate from the main entry so vanilla consumers importing from '@overpunch/confettitext'
 // never pull React into their graph. Shares the SAME core module instance as the main entry (rollup
 // hoists core/adjust into one shared chunk), so `clearConfettiText()` and per-burst `.clear()` work
 // across both import paths.
