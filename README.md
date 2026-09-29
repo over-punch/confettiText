@@ -163,7 +163,7 @@ flowchart LR
 
 ## License
 
-MIT © [Liiift Studio](https://liiift.studio)
+MIT © [Liiift Studio](https://overpunch.ca)
 
 ---
 
