@@ -5,7 +5,7 @@ import { useCallback, useRef, useState } from 'react'
 import { confettiText } from '@overpunch/confettitext'
 
 /** Festive palette matching the tool's brand — passed as `colors` when the toggle is on. */
-const FESTIVE = ['#ff5d8f', '#ffd166', '#06d6a0', '#8a7cff', '#f2a25c', '#e9e2d8']
+const FESTIVE = ['#ff5d8f', '#ffd166', '#06d6a0', '#8a7cff', '#f2a25c', '#002c29']
 
 export default function Demo() {
 	const headlineRef = useRef<HTMLHeadingElement>(null)

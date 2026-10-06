@@ -1,5 +1,5 @@
 /* Per-tool theme for confettiText — base styles live in base.css (synced from type-tools/shared/styles/).
-   A dark celebration stage with a warm-red hue; the demo scatters festive letter-particles on top. */
+   Colours come from TOOL_IDS (written by npm run sync); the demo scatters festive letter-particles on top. */
 @import "tailwindcss";
 @import "./base.css";
 

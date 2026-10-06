@@ -7,14 +7,14 @@ export const alt = 'Confetti Text — A confetti cannon made of your letters'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
-/** Tool background: oklch(0.10 0.05 0) */
-const BG = '#180d0d'
+/** Tool background: oklch(0.900 0.1300 188) (toolBgHex) */
+const BG = '#60faee'
 /** Foreground — main headline */
-const FG = '#f7f0ee'
+const FG = '#002c29'
 /** Muted — eyebrow, secondary text */
-const MUTED = '#c3b2b0'
+const MUTED = '#3a5350'
 /** Subtle — domain */
-const SUBTLE = '#9a8987'
+const SUBTLE = '#586e6c'
 
 /** Festive confetti-letter scatter above the headline. */
 const CONFETTI = [
