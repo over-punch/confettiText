@@ -71,6 +71,7 @@ clearConfettiText()
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@overpunch/confettitext/dist/confettitext.webflow.min.js"></script>
 <script>
+  // Put this at the end of <body> (or run it on DOMContentLoaded) so the element exists.
   ConfettiText.attach(document.querySelector('h1'))          // click-to-burst
   // ConfettiText.fire({ text: 'Yay', particleCount: 120 })  // or fire directly
 </script>
@@ -107,7 +108,7 @@ Every option is optional. Physics defaults mirror canvas-confetti.
 
 **Core** — `@overpunch/confettitext`:
 
-- `confettiText(options?)` → `ConfettiBurst` — fire a one-shot burst (viewport-fraction `origin`). The returned burst is a `Promise<'completed' | 'cleared'>` (resolves `'completed'` when it runs its course, `'cleared'` if cancelled) with a `.clear()` to cancel just this burst. Hold the returned value to use `.clear()` — it's only on the burst object, not on a `.then()`-chained promise — and a resolved burst's `.clear()` is a no-op. Each burst gets its own fixed layer, so `zIndex` is independent per burst.
+- `confettiText(options?)` → `ConfettiBurst` — fire a one-shot burst (viewport-fraction `origin`). The returned burst is a `Promise<'completed' | 'cleared' | 'skipped'>` (`'skipped'` when 3,000 pieces are already in flight) (resolves `'completed'` when it runs its course, `'cleared'` if cancelled) with a `.clear()` to cancel just this burst. Hold the returned value to use `.clear()` — it's only on the burst object, not on a `.then()`-chained promise — and a resolved burst's `.clear()` is a no-op. Each burst gets its own fixed layer, so `zIndex` is independent per burst.
 - `attachConfettiText(element, options?)` → `() => void` — click-to-burst (and Enter/Space) from an element's text/position; returns a detach fn.
 - `clearConfettiText()` — remove **every** live particle across all bursts, cancel the loop, detach the layer, and resolve every pending burst.
 - `CONFETTI_TEXT_CLASSES` — `{ layer: 'ct-layer', piece: 'ct-piece' }` for targeting the generated markup.
@@ -124,7 +125,7 @@ From the core entry: `ConfettiTextOptions` (the burst options), `ConfettiOrigin`
 
 ## How it works
 
-Every character of your text is wrapped in an absolutely-positioned `<span>` inside a single fixed, `pointer-events: none`, `aria-hidden` layer appended to `<body>`. Each frame, one `requestAnimationFrame` loop advances every live piece: `velocity` decays, `gravity`/`drift` accumulate, and a `scaleY(cos(tilt))` term produces the paper flip-through-3D tumble. Spent or off-screen pieces are removed; when none remain, the loop stops and the layer is detached. It's all real DOM, so the letters render in your (variable) font — element-fired bursts inherit the source element's computed font.
+Every character of your text is wrapped in an absolutely-positioned `<span>` inside a fixed, `pointer-events: none`, `aria-hidden` layer appended to `<body>` (or to the open modal `<dialog>` the source element is in, so the burst isn't hidden behind it; a transformed page is accounted for). Element-fired bursts use the element's **visible** text (`innerText`: hidden text, scripts and styles are left out, its `text-transform` applied), its font, its italics and — when `colors` is `null` — its colour. One `requestAnimationFrame` loop advances every live piece by the time since the last frame (the constants are per 60 Hz frame, so a 120 Hz screen gets half-steps and the burst lasts the same time): `velocity` decays, `gravity`/`drift` accumulate, and a `scaleY(cos(tilt))` term produces the paper flip-through-3D tumble. Spent or off-screen pieces are removed; when none remain, the loop stops and the layer is detached. It's all real DOM, so the letters render in your (variable) font — element-fired bursts inherit the source element's computed font.
 
 ```mermaid
 flowchart LR
@@ -143,7 +144,11 @@ flowchart LR
 
 - The confetti layer is `aria-hidden` and `pointer-events: none` — it's decorative, never announced, and never intercepts clicks.
 - Bursts are skipped when the user has `prefers-reduced-motion: reduce` (opt back in with `disableForReducedMotion: false`).
-- The `'click'` trigger makes a non-interactive source element keyboard-operable (`tabindex`, `role="button"`, Enter/Space); to opt out, render a real control with `as="button"`, or use `trigger="manual"` and drive `fire()` yourself. The burst itself is a visual flourish and is not announced to screen readers — add your own `aria-live` message if you need to confirm the action.
+- The `'click'` trigger makes a non-interactive source element keyboard-operable: it becomes focusable and Enter/Space on it fires the burst (only keys aimed at the element itself — never keys typed into something inside it, held-down repeats or Ctrl/Cmd/Alt chords). Generic elements (`span`, `div`…) also get `role="button"`; semantic ones keep their role, so a heading stays a heading. An element that contains its own controls (links, buttons, inputs, editable text) gets no keyboard shim at all — its controls keep working, and clicking still bursts. For the clearest control, render a real button with `as="button"`, or use `trigger="manual"` and drive `fire()` yourself. The burst itself is a visual flourish and is not announced to screen readers — add your own `aria-live` message if you need to confirm the action.
+
+## Performance
+
+Every piece is a DOM element. In desktop Chrome, the default 70 pieces cost nothing noticeable (8 ms frames); 300 letter pieces held 60 fps-ish (about 17–25 ms frames), and 1,000 letter pieces dropped to about 25 fps (35–40 ms frames). Shapes are much cheaper than letters (1,000 shapes: 8 ms). Numbers are validated: NaN and non-numbers fall back to the defaults (a NaN `particleCount` means none), and `particleCount`/`ticks` are capped at 1,000/1,200.
 
 ## Compatibility
 
@@ -152,6 +157,8 @@ flowchart LR
 - SSR-safe — every entry point no-ops when `document` is undefined.
 
 ## Changelog
+
+**v3.1.0** — accessibility and robustness from a hostile review: the keyboard shim responds only to keys aimed at the element (Space and Enter typed into inputs, buttons and links inside an attached element were swallowed), skips elements that contain their own controls or are editable, keeps semantic roles (a heading is no longer turned into a button), ignores repeats and modifier chords, and cleans up only what it added; bursts use the element's visible text (hidden text, `<script>`/`<style>` contents were turned into confetti), its italics and colour; time-based physics (bursts ran twice as fast on 120 Hz screens); numbers validated (NaN left every piece at the top-left corner; Infinity counts gave zero); bursts from a modal `<dialog>` draw inside it, and transformed pages are accounted for; `'skipped'` result when the live-piece cap is full; `symbols` accepts a string; `<ConfettiText>` forwards HTML attributes and handlers (`onClick`, `href` with `as="a"`…) and the hook follows element changes (a changed `as`, a ref attached later); `burstFromElement` exported.
 
 **v3.0.0** — `shapes` option (classic geometric confetti — `square`/`circle`/`strip` — mixed with the letters); each burst now gets **its own layer**, so `zIndex` is independent per burst (concurrent bursts no longer clobber each other's stacking); and the burst promise resolves to `'completed' | 'cleared'` so you can tell a finished burst from a cancelled one. Migrating from v2: `await confettiText(...)` now yields a `ConfettiResult` string instead of `void` — harmless unless you typed the result as `void`.
 
