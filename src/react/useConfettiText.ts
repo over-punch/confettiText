@@ -3,7 +3,7 @@
 // bursts its own text on click; `trigger` switches to fire-on-mount, fire-on-scroll-into-view, or
 // manual (call `fire()` yourself).
 import { useCallback, useEffect, useRef } from 'react'
-import { confettiText, type ConfettiBurst } from '../core/adjust'
+import { burstFromElement, confettiText, type ConfettiBurst } from '../core/adjust'
 import { makeKeyboardOperable } from '../core/a11y'
 import type { ConfettiTextOptions, ReactConfettiTextOptions } from '../core/types'
 
@@ -18,11 +18,15 @@ export interface ConfettiTextHandle {
 	fire: (overrides?: ConfettiTextOptions) => ConfettiBurst
 }
 
+/** Elements that already fired their `mount` burst (StrictMode mounts effects twice in development). */
+const firedOnMount = new WeakSet<HTMLElement>()
+
 /**
  * React hook wrapping {@link confettiText}. The burst originates from the ref'd element and, unless
- * `text` is given, is made of that element's text. Respects `prefers-reduced-motion` via the core.
- * For the default `click` trigger the ref'd element is made keyboard-operable (focusable + Enter/Space)
- * unless it is already a natively interactive element.
+ * `text` is given, is made of that element's visible text. Respects `prefers-reduced-motion` via the core.
+ * For the default `click` trigger the ref'd element is made keyboard-operable (see the core's
+ * makeKeyboardOperable: generic elements become buttons, headings keep their role). The wiring follows
+ * the ref: an element that appears later, or a different element (e.g. a changed `as`), is wired too.
  *
  * @param options - burst options plus a React-only `trigger` ('click' | 'mount' | 'inView' | 'manual')
  */
@@ -32,65 +36,64 @@ export function useConfettiText(options: ReactConfettiTextOptions = {}): Confett
 	optionsRef.current = options
 
 	const fire = useCallback((overrides: ConfettiTextOptions = {}): ConfettiBurst => {
-		const opts = { ...optionsRef.current, ...overrides }
+		const { trigger: _trigger, ...opts } = { ...optionsRef.current, ...overrides } as ReactConfettiTextOptions
 		const el = ref.current
-		if (el && typeof window !== 'undefined') {
-			const rect = el.getBoundingClientRect()
-			return confettiText({
-				...opts,
-				text: opts.text ?? el.textContent ?? undefined,
-				// Inherit the element's own font so the burst matches the text it came from.
-				fontFamily: opts.fontFamily ?? (typeof getComputedStyle === 'function' ? getComputedStyle(el).fontFamily : undefined),
-				origin: {
-					x: (rect.left + rect.width / 2) / window.innerWidth,
-					y: (rect.top + rect.height / 2) / window.innerHeight,
-				},
-			})
-		}
+		if (el && typeof window !== 'undefined') return burstFromElement(el, opts)
 		return confettiText(opts)
 	}, [])
 
 	const trigger = options.trigger ?? 'click'
+	const wired = useRef<{ el: HTMLElement; trigger: string; cleanup: () => void } | null>(null)
 
+	// Every render: (re)wire when the element or the trigger changed.
 	useEffect(() => {
 		const el = ref.current
-		if (!el || trigger === 'manual') return
+		const current = wired.current
+		if (current && current.el === el && current.trigger === trigger) return
+		current?.cleanup()
+		wired.current = null
+		if (!el) return
 
+		let cleanup = () => {}
 		if (trigger === 'mount') {
-			fire()
-			return
-		}
-
-		if (trigger === 'inView') {
+			if (!firedOnMount.has(el)) {
+				firedOnMount.add(el)
+				fire()
+			}
+		} else if (trigger === 'inView') {
 			if (typeof IntersectionObserver === 'undefined') {
 				fire()
-				return
+			} else {
+				const io = new IntersectionObserver(
+					(entries) => {
+						if (entries[0].isIntersecting) {
+							fire()
+							io.disconnect()
+						}
+					},
+					{ threshold: 0.4 },
+				)
+				io.observe(el)
+				cleanup = () => io.disconnect()
 			}
-			const io = new IntersectionObserver(
-				(entries) => {
-					if (entries[0].isIntersecting) {
-						fire()
-						io.disconnect()
-					}
-				},
-				{ threshold: 0.4 },
-			)
-			io.observe(el)
-			return () => io.disconnect()
+		} else if (trigger === 'click') {
+			// Plus keyboard operability for non-interactive elements (WCAG 2.1.1).
+			const onClick = (): void => { fire() }
+			el.addEventListener('click', onClick)
+			const undoKeyboard = makeKeyboardOperable(el, () => { fire() })
+			cleanup = () => {
+				el.removeEventListener('click', onClick)
+				undoKeyboard()
+			}
 		}
+		wired.current = { el, trigger, cleanup }
+	})
 
-		// 'click' — plus keyboard operability for non-interactive elements (WCAG 2.1.1).
-		const onClick = (): void => {
-			fire()
-		}
-		el.addEventListener('click', onClick)
-		const undoKeyboard = makeKeyboardOperable(el, () => fire())
-
-		return () => {
-			el.removeEventListener('click', onClick)
-			undoKeyboard()
-		}
-	}, [trigger, fire])
+	// Unwire on unmount.
+	useEffect(() => () => {
+		wired.current?.cleanup()
+		wired.current = null
+	}, [])
 
 	return { ref, fire }
 }
