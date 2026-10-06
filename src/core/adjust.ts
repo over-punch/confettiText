@@ -22,10 +22,27 @@ const MAX_TEXT_LEN = 4000
 /** Max distinct pool entries — particles cycle, so more than this is never needed. */
 const MAX_POOL = 1000
 
-/** Clamp `n` into [lo, hi]; a non-finite input (NaN/Infinity) resolves to `lo`. */
-function clamp(n: number, lo: number, hi: number): number {
-	if (!Number.isFinite(n)) return lo
+/** Clamp `n` into [lo, hi]; NaN (or a non-number) resolves to `fallback`, ±Infinity to the bound. */
+function clamp(n: number, lo: number, hi: number, fallback = lo): number {
+	if (typeof n !== 'number' || Number.isNaN(n)) return fallback
 	return n < lo ? lo : n > hi ? hi : n
+}
+
+/** A finite number, or the fallback (NaN, Infinity and non-numbers would freeze or scatter the burst). */
+function finiteOr(n: unknown, fallback: number): number {
+	return typeof n === 'number' && Number.isFinite(n) ? n : fallback
+}
+
+/** Duration of one frame at 60 Hz (ms): the physics constants are per 60 Hz frame. */
+const FRAME_MS = 1000 / 60
+
+/** Warnings already printed. */
+const warned = new Set<string>()
+/** Prints a console warning the first time it is seen. */
+function warnOnce(message: string): void {
+	if (warned.has(message)) return
+	warned.add(message)
+	console.warn(message)
 }
 
 /** Fully-resolved options with every default filled in. */
@@ -70,10 +87,13 @@ interface Piece {
 	flat: boolean
 	/** Which burst this piece belongs to, so bursts can resolve/clear independently. */
 	burstId: number
+	/** The layer's offset from the viewport (a transformed page moves a "fixed" layer) */
+	offX: number
+	offY: number
 }
 
 /** How a finished burst ended: it ran to completion, or was cancelled via `clear()` / `clearConfettiText()`. */
-export type ConfettiResult = 'completed' | 'cleared'
+export type ConfettiResult = 'completed' | 'cleared' | 'skipped'
 
 /**
  * A fired burst. It is a `Promise<ConfettiResult>` that resolves when the burst ends — to `'completed'`
@@ -146,16 +166,17 @@ function prefersReducedMotion(): boolean {
 /** Resolve user options against the defaults. */
 function resolve(options: ConfettiTextOptions): Resolved {
 	const rawColors = options.colors
+	const scalar = finiteOr(options.scalar, 1)
 	return {
-		particleCount: clamp(Math.floor(options.particleCount ?? 70), 0, MAX_PARTICLE_COUNT),
-		angle: options.angle ?? 90,
-		spread: options.spread ?? 62,
-		startVelocity: options.startVelocity ?? 34,
-		decay: options.decay ?? 0.9,
-		gravity: options.gravity ?? 1.1,
-		drift: options.drift ?? 0,
-		ticks: clamp(Math.floor(options.ticks ?? 200), 1, MAX_TICKS),
-		scalar: options.scalar ?? 1,
+		particleCount: clamp(Math.floor(options.particleCount ?? 70), 0, MAX_PARTICLE_COUNT, 0),
+		angle: finiteOr(options.angle, 90),
+		spread: finiteOr(options.spread, 62),
+		startVelocity: finiteOr(options.startVelocity, 34),
+		decay: clamp(finiteOr(options.decay, 0.9), 0, 1, 0.9),
+		gravity: finiteOr(options.gravity, 1.1),
+		drift: finiteOr(options.drift, 0),
+		ticks: clamp(Math.floor(options.ticks ?? 200), 1, MAX_TICKS, 200),
+		scalar: scalar > 0 ? scalar : 1,
 		// undefined → festive default; null/empty → uncoloured (inherit currentColor)
 		colors: rawColors === undefined ? DEFAULT_COLORS : rawColors && rawColors.length ? rawColors : null,
 		weightRange: options.weightRange === undefined ? [400, 700] : options.weightRange,
@@ -166,8 +187,9 @@ function resolve(options: ConfettiTextOptions): Resolved {
 	}
 }
 
-/** Create a fresh fixed, aria-hidden, non-interactive layer for one burst at its own `zIndex`. */
-function createLayer(zIndex: number): HTMLElement {
+/** Create a fresh fixed, aria-hidden, non-interactive layer for one burst at its own `zIndex`, inside
+ *  `host` (the page, or an open modal dialog — the top layer would otherwise cover the burst). */
+function createLayer(zIndex: number, host: HTMLElement): HTMLElement {
 	const layer = document.createElement('div')
 	layer.className = CONFETTI_TEXT_CLASSES.layer
 	layer.setAttribute('aria-hidden', 'true')
@@ -181,8 +203,17 @@ function createLayer(zIndex: number): HTMLElement {
 		overflow: 'hidden',
 		zIndex: String(zIndex),
 	})
-	document.body.appendChild(layer)
+	host.appendChild(layer)
 	return layer
+}
+
+/** Where an element's burst must live: inside an open modal <dialog> it belongs to, else the page. */
+function hostFor(el: Element | null): HTMLElement {
+	const dialog = el?.closest?.('dialog') as HTMLDialogElement | null
+	if (dialog?.open) {
+		try { if (dialog.matches(':modal')) return dialog } catch { /* :modal unsupported */ }
+	}
+	return document.body
 }
 
 /** Lazily-created shared grapheme segmenter: `undefined` = not tried, `null` = unavailable. */
@@ -215,17 +246,22 @@ type PoolItem = { g: string } | { s: ConfettiShape }
  * entries are dropped; the source text is length-capped before segmenting, and the pool is capped, to
  * bound work. Falls back to a single sparkle if empty.
  */
-function toPool(text: string, symbols?: string[], shapes?: ConfettiShape[]): PoolItem[] {
+function toPool(text: string, symbols?: string[] | string, shapes?: ConfettiShape[]): PoolItem[] {
 	const letters: PoolItem[] = segmentGraphemes(text.replace(/\s+/g, '').slice(0, MAX_TEXT_LEN)).map((g) => ({ g }))
-	const sym: PoolItem[] = (symbols ? symbols.filter(Boolean) : []).map((g) => ({ g }))
-	const shp: PoolItem[] = (shapes ?? []).map((s) => ({ s }))
+	// A single string of symbols is split into its graphemes (e.g. '🎉✨').
+	const symList = typeof symbols === 'string' ? segmentGraphemes(symbols.replace(/\s+/g, '')) : Array.isArray(symbols) ? symbols : []
+	const sym: PoolItem[] = symList.filter((v) => typeof v === 'string' && v).map((g) => ({ g }))
+	const shp: PoolItem[] = (Array.isArray(shapes) ? shapes : []).filter((v) => v === 'square' || v === 'circle' || v === 'strip').map((s) => ({ s }))
 	let pool: PoolItem[] = [...shp, ...sym, ...letters]
 	if (pool.length > MAX_POOL) pool = pool.slice(0, MAX_POOL)
 	return pool.length ? pool : [{ g: '✦' }]
 }
 
+/** Style a letter takes from the element it came from (italics; its colour when no palette is given). */
+interface Inherit { fontStyle?: string; color?: string }
+
 /** Emit a burst of particles from an absolute viewport point (px); return its ConfettiBurst. */
-function fireAt(originX: number, originY: number, pool: PoolItem[], o: Resolved): ConfettiBurst {
+function fireAt(originX: number, originY: number, pool: PoolItem[], o: Resolved, host: HTMLElement = document.body, inherit: Inherit = {}): ConfettiBurst {
 	const burstId = ++_burstSeq
 	let resolveFn: (result: ConfettiResult) => void = () => {}
 	const promise = new Promise<ConfettiResult>((res) => {
@@ -238,11 +274,20 @@ function fireAt(originX: number, originY: number, pool: PoolItem[], o: Resolved)
 	// Nothing to spawn (zero count / cap full), or no rAF to animate with → finish immediately.
 	// Guarding here means we never attach an empty layer or leave a burst promise pending.
 	if (count <= 0 || typeof requestAnimationFrame !== 'function') {
-		resolveFn('completed')
+		if (o.particleCount > 0 && _pieces.length >= MAX_LIVE_PIECES) {
+			warnOnce(`[confettiText] ${MAX_LIVE_PIECES} pieces are already in flight; the burst was skipped`)
+			resolveFn('skipped')
+		} else {
+			resolveFn('completed')
+		}
 		return burst
 	}
 
-	const layer = createLayer(o.zIndex)
+	const layer = createLayer(o.zIndex, host)
+	// A transformed ancestor makes a "fixed" layer scroll with the page: measure where it actually is.
+	const lr = layer.getBoundingClientRect()
+	const offX = Number.isFinite(lr.left) ? lr.left : 0
+	const offY = Number.isFinite(lr.top) ? lr.top : 0
 	const radAngle = (o.angle * Math.PI) / 180
 	const radSpread = (o.spread * Math.PI) / 180
 	const frag = document.createDocumentFragment()
@@ -260,7 +305,9 @@ function fireAt(originX: number, originY: number, pool: PoolItem[], o: Resolved)
 			span.style.fontSize = `${size.toFixed(1)}px`
 			span.style.lineHeight = '1'
 			if (o.fontFamily) span.style.fontFamily = o.fontFamily
+			if (inherit.fontStyle) span.style.fontStyle = inherit.fontStyle
 			if (color) span.style.color = color
+			else if (inherit.color) span.style.color = inherit.color
 			if (o.weightRange) {
 				const [wa, wb] = o.weightRange
 				const w = Math.round(wa + Math.random() * (wb - wa))
@@ -273,7 +320,8 @@ function fireAt(originX: number, originY: number, pool: PoolItem[], o: Resolved)
 			const div = document.createElement('div')
 			div.style.width = `${size.toFixed(1)}px`
 			div.style.height = `${(item.s === 'strip' ? size * 0.45 : size).toFixed(1)}px`
-			div.style.background = color ?? 'currentColor'
+			// backgroundColor (not background) so a colour string can't load an image.
+			div.style.backgroundColor = color ?? inherit.color ?? 'currentColor'
 			if (item.s === 'circle') div.style.borderRadius = '50%'
 			else if (item.s === 'strip') div.style.borderRadius = '1px'
 			el = div
@@ -306,37 +354,48 @@ function fireAt(originX: number, originY: number, pool: PoolItem[], o: Resolved)
 			decay: o.decay,
 			flat: o.flat,
 			burstId,
+			offX,
+			offY,
 		})
 	}
 	layer.appendChild(frag)
 
 	// Register the burst so step() can resolve it once its pieces retire (count > 0 guaranteed above).
 	_bursts.set(burstId, { live: count, resolve: resolveFn, layer })
-	if (!_raf) _raf = requestAnimationFrame(step)
+	if (!_raf) { _lastFrame = 0; _raf = requestAnimationFrame(step) }
 
 	return burst
 }
 
-/** Advance every live particle one frame; retire spent or off-screen ones. */
-function step(): void {
+/** Time of the previous frame (ms), 0 before the first. */
+let _lastFrame = 0
+
+/**
+ * Advance every live particle by the time since the last frame (the constants are per 60 Hz frame, so a
+ * 120 Hz screen gets half-steps and the burst lasts the same time); retire spent or off-screen ones.
+ */
+function step(now: number): void {
 	const viewportH = typeof window !== 'undefined' ? window.innerHeight : 0
 	const viewportW = typeof window !== 'undefined' ? window.innerWidth : 0
+	// Frames since the last one (1 at 60 Hz, 0.5 at 120 Hz); capped so a stalled tab doesn't jump.
+	const k = _lastFrame && Number.isFinite(now) ? Math.min(4, Math.max(0, (now - _lastFrame) / FRAME_MS)) : 1
+	_lastFrame = Number.isFinite(now) ? now : 0
 	for (let i = _pieces.length - 1; i >= 0; i--) {
 		const p = _pieces[i]
-		p.x += p.dirX * p.velocity + p.drift
-		p.y += p.dirY * p.velocity + p.gravity * GRAVITY_SCALE
-		p.velocity *= p.decay
-		p.wobble += p.wobbleSpeed
-		p.tilt += p.tiltSpeed
+		p.x += (p.dirX * p.velocity + p.drift) * k
+		p.y += (p.dirY * p.velocity + p.gravity * GRAVITY_SCALE) * k
+		p.velocity *= Math.pow(p.decay, k)
+		p.wobble += p.wobbleSpeed * k
+		p.tilt += p.tiltSpeed * k
 		const wx = p.x + 8 * Math.cos(p.wobble)
 		const wy = p.y + 8 * Math.sin(p.wobble)
 		const progress = p.tick / p.totalTicks
 		p.el.style.opacity = (1 - progress).toFixed(3)
 		const scaleY = p.flat ? 1 : Math.cos(p.tilt)
-		p.el.style.transform = `translate(${wx.toFixed(1)}px, ${wy.toFixed(1)}px) rotate(${(
+		p.el.style.transform = `translate(${(wx - p.offX).toFixed(1)}px, ${(wy - p.offY).toFixed(1)}px) rotate(${(
 			p.tilt * p.spin
 		).toFixed(1)}deg) scaleY(${scaleY.toFixed(3)})`
-		p.tick++
+		p.tick += k
 		// Retire when spent, fallen past the bottom, or drifted off either side. (Not the top — gravity
 		// can still carry an upward-launched piece back into view.)
 		if (p.tick >= p.totalTicks || wy > viewportH + 80 || wx < -120 || wx > viewportW + 120) {
@@ -375,10 +434,10 @@ export function confettiText(options: ConfettiTextOptions = {}): ConfettiBurst {
 	if (typeof document === 'undefined' || !document.body) return resolvedBurst()
 	const o = resolve(options)
 	if (o.disableForReducedMotion && prefersReducedMotion()) return resolvedBurst()
-	const originX = (options.origin?.x ?? 0.5) * window.innerWidth
-	const originY = (options.origin?.y ?? 0.5) * window.innerHeight
+	const originX = finiteOr(options.origin?.x, 0.5) * window.innerWidth
+	const originY = finiteOr(options.origin?.y, 0.5) * window.innerHeight
 	// If only symbols/shapes are given (no text), don't inject the 'Yay' default.
-	const hasExtras = !!(options.symbols?.length || options.shapes?.length)
+	const hasExtras = !!((options.symbols as unknown as string[] | string | undefined)?.length || options.shapes?.length)
 	const text = options.text ?? (hasExtras ? '' : 'Yay')
 	return fireAt(originX, originY, toPool(text, options.symbols, options.shapes), o)
 }
@@ -389,21 +448,37 @@ export function confettiText(options: ConfettiTextOptions = {}): ConfettiBurst {
  *
  * @example const detach = attachConfettiText(document.querySelector('h1')!)
  */
+/**
+ * Fire a burst of an element's own visible text (innerText: hidden text, scripts and styles left out, its
+ * text-transform applied) from its on-screen position, in its font, italics and — without a palette — its
+ * colour. Inside an open modal dialog, the burst is drawn inside the dialog. Used by attachConfettiText
+ * and the React hook.
+ */
+export function burstFromElement(element: HTMLElement, options: ConfettiTextOptions = {}): ConfettiBurst {
+	if (typeof document === 'undefined' || !document.body || !element) return resolvedBurst()
+	const o = resolve(options)
+	if (o.disableForReducedMotion && prefersReducedMotion()) return resolvedBurst()
+	const cs = typeof getComputedStyle === 'function' ? getComputedStyle(element) : null
+	// Inherit the element's own font so the burst matches the text it came from (unless overridden).
+	if (!o.fontFamily && cs) o.fontFamily = cs.fontFamily || null
+	const inherit: Inherit = {
+		fontStyle: cs && cs.fontStyle !== 'normal' ? cs.fontStyle : undefined,
+		color: !o.colors && cs ? cs.color : undefined,
+	}
+	const visible = typeof element.innerText === 'string' && element.innerText.trim() ? element.innerText : element.textContent
+	const rect = element.getBoundingClientRect()
+	const pool = toPool(options.text ?? visible ?? 'Yay', options.symbols, options.shapes)
+	return fireAt(rect.left + rect.width / 2, rect.top + rect.height / 2, pool, o, hostFor(element), inherit)
+}
+
 export function attachConfettiText(element: HTMLElement, options: ConfettiTextOptions = {}): () => void {
 	if (typeof document === 'undefined') return () => {}
-
-	const fire = (): void => {
-		if (!document.body) return
-		const o = resolve(options)
-		if (o.disableForReducedMotion && prefersReducedMotion()) return
-		// Inherit the element's own font so the burst matches the text it came from (unless overridden).
-		if (!o.fontFamily && typeof getComputedStyle === 'function') {
-			o.fontFamily = getComputedStyle(element).fontFamily || null
-		}
-		const rect = element.getBoundingClientRect()
-		const pool = toPool(options.text ?? element.textContent ?? 'Yay', options.symbols, options.shapes)
-		fireAt(rect.left + rect.width / 2, rect.top + rect.height / 2, pool, o)
+	if (!element) {
+		warnOnce('[confettiText] attachConfettiText was called without an element (run it after the element exists, e.g. at the end of <body> or on DOMContentLoaded)')
+		return () => {}
 	}
+
+	const fire = (): void => { void burstFromElement(element, options) }
 
 	const onClick = (): void => fire()
 	element.addEventListener('click', onClick)

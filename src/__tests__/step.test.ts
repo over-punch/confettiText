@@ -155,3 +155,119 @@ describe('burst promise + per-burst clear', () => {
 		expect(pieces().length).toBe(0)
 	})
 })
+
+// ─── Review fixes (2026-10) ──────────────────────────────────────────────────
+
+import { attachConfettiText, burstFromElement } from '../core/adjust'
+
+/** Run frames at a given interval (ms), so the physics can be checked against time, not frame count. */
+function flushAt(n: number, stepMs: number, start = 1000): void {
+	for (let i = 0; i < n; i++) {
+		const cbs = frame
+		frame = []
+		for (const cb of cbs) cb(start + i * stepMs)
+	}
+}
+
+describe('review fixes', () => {
+	it('a burst lasts the same time at 120 Hz as at 60 Hz', async () => {
+		const b60 = confettiText({ text: 'x', particleCount: 1, ticks: 30, startVelocity: 0, gravity: 0 })
+		let f60 = 0
+		let done60 = false
+		b60.then(() => { done60 = true })
+		while (frame.length && f60 < 500) { flushAt(1, 1000 / 60, 1000 + f60 * (1000 / 60)); f60++ }
+		await Promise.resolve()
+		const b120 = confettiText({ text: 'x', particleCount: 1, ticks: 30, startVelocity: 0, gravity: 0 })
+		let f120 = 0
+		while (frame.length && f120 < 500) { flushAt(1, 1000 / 120, 1000 + f120 * (1000 / 120)); f120++ }
+		await b120
+		expect(done60).toBe(true)
+		// About twice as many frames at 120 Hz for the same duration.
+		expect(f120).toBeGreaterThan(f60 * 1.7)
+	})
+
+	it('non-finite numbers fall back instead of stacking every piece at the corner', () => {
+		confettiText({ text: 'x', particleCount: 3, angle: NaN, startVelocity: NaN, gravity: NaN, origin: { x: NaN, y: NaN }, scalar: -2 })
+		flush(3)
+		for (const p of pieces()) {
+			expect(p.style.transform).not.toContain('NaN')
+			expect(p.style.fontSize).not.toBe('')
+		}
+	})
+
+	it('Infinity counts mean "as many as allowed", not zero', () => {
+		confettiText({ text: 'x', particleCount: Infinity, ticks: Infinity })
+		expect(pieces().length).toBe(1000)
+	})
+
+	it('accepts symbols as a single string', () => {
+		expect(() => confettiText({ text: '', symbols: '🎉✨' as unknown as string[], particleCount: 2 })).not.toThrow()
+		expect(pieces().map((p) => p.textContent).sort()).toEqual(['✨', '🎉'])
+	})
+
+	it("reports 'skipped' when the live-piece cap is full", async () => {
+		for (let i = 0; i < 3; i++) confettiText({ text: 'x', particleCount: 1000 })
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+		await expect(confettiText({ text: 'x', particleCount: 5 })).resolves.toBe('skipped')
+		warn.mockRestore()
+	})
+
+	it('bursts the visible text, not hidden text, scripts or styles', () => {
+		const el = document.createElement('p')
+		el.innerHTML = 'Hi<span style="display:none">SECRET</span><style>.zz{}</style>'
+		document.body.appendChild(el)
+		// happy-dom's innerText leaves hidden and style content out the way browsers do.
+		burstFromElement(el, { particleCount: 20 })
+		const text = pieces().map((p) => p.textContent).join('')
+		expect(text).not.toContain('SECRET')
+		expect(text).not.toContain('zz')
+	})
+
+	it('attachConfettiText(null) warns instead of throwing', () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+		expect(() => attachConfettiText(null as unknown as HTMLElement)).not.toThrow()
+		warn.mockRestore()
+	})
+})
+
+describe('keyboard shim', () => {
+	it('keys typed into controls inside the element are left alone (no shim on a container with controls)', () => {
+		const div = document.createElement('div')
+		div.innerHTML = 'Card <input id="i"> <button id="b">Go</button>'
+		document.body.appendChild(div)
+		attachConfettiText(div)
+		expect(div.hasAttribute('role')).toBe(false)
+		expect(div.hasAttribute('tabindex')).toBe(false)
+		const e = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })
+		div.querySelector('#i')!.dispatchEvent(e)
+		expect(e.defaultPrevented).toBe(false)
+	})
+
+	it('a heading keeps its role; only Enter/Space on the element itself, never repeats or chords, fires', () => {
+		const h = document.createElement('h1')
+		h.textContent = 'Congrats'
+		document.body.appendChild(h)
+		attachConfettiText(h, { particleCount: 1 })
+		expect(h.hasAttribute('role')).toBe(false)
+		expect(h.getAttribute('tabindex')).toBe('0')
+		h.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true }))
+		h.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true }))
+		expect(pieces().length).toBe(0)
+		h.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+		expect(pieces().length).toBe(1)
+	})
+
+	it('a generic element becomes a button; attributes stay until the last attachment is removed', () => {
+		const s = document.createElement('span')
+		s.textContent = 'Yay'
+		document.body.appendChild(s)
+		const d1 = attachConfettiText(s)
+		const d2 = attachConfettiText(s)
+		expect(s.getAttribute('role')).toBe('button')
+		d1()
+		expect(s.getAttribute('role')).toBe('button')
+		d2()
+		expect(s.hasAttribute('role')).toBe(false)
+		expect(s.hasAttribute('tabindex')).toBe(false)
+	})
+})

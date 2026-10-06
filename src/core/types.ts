@@ -29,9 +29,10 @@ export interface ConfettiTextOptions {
 	/**
 	 * Extra glyphs — emoji, symbols, or short strings — mixed into the burst alongside the letters of
 	 * `text`. Each entry becomes its own particle. Pair with an empty `text` (`text: ''`) for an
-	 * all-emoji burst, e.g. `symbols: ['🎉', '✨', '⭐']`. Emoji/combining sequences are kept whole.
+	 * all-emoji burst, e.g. `symbols: ['🎉', '✨', '⭐']`. Emoji/combining sequences are kept whole. A single
+	 * string is split into its graphemes (`symbols: '🎉✨⭐'`).
 	 */
-	symbols?: string[]
+	symbols?: string[] | string
 	/**
 	 * Geometric particles (classic paper confetti) mixed into the burst alongside the letters —
 	 * `'square'`, `'circle'`, and `'strip'`. Each entry becomes its own particle, coloured from
